@@ -1,0 +1,831 @@
+---
+title: "Bayesian Structural Time Series Modeling - Hypothesis 1"
+author: "An Nguyen"
+format: html
+---
+
+-   H1: The harassment towards community members declines after the implementation of the moderation bot
+-   H2: The harassment towards other outgroup members will increase in community discussion after the implementation of the bot.
+-   H3: After the implementation of the bot, communities with similar topics and without bot moderation (human-only moderated communities) will experience an increase in harassment
+
+This code is for H1 only
+
+```{r routine, echo=FALSE, output = FALSE}
+rm(list = ls())
+
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+library(fixest)
+library(rdd)
+library(kableExtra)
+library(knitr)
+library(broom)
+library(purrr)
+library(psych)
+library(lubridate)
+library(CausalImpact)
+
+source("redditbots_function.R")
+```
+
+
+```{r clean-data-for-BSTS, echo = F, results = F, warning = FALSE}
+# Load and clean
+fds_bsts <- agg_data("E:/gihub-data/redditbots/fds/fds_res.csv",
+                  ia_thresh = 0.0113, insult_thresh = 0.0885, toxic_thresh = 0.25)
+#Model 1
+fm_bsts <- agg_data("E:/gihub-data/redditbots/control-fds/feminism_res.csv",
+                 ia_thresh = 0.0164, insult_thresh = 0.0518, toxic_thresh = 0.176)
+twoX_bsts <- agg_data("E:/gihub-data/redditbots/control-fds/twoX_res.csv",
+                   ia_thresh = 0.00672, insult_thresh = 0.0557, toxic_thresh = 0.171)
+wvsp_bsts <- agg_data("E:/gihub-data/redditbots/control-fds/wvsp_res.csv",
+                   ia_thresh = 0.00735, insult_thresh = 0.0305, toxic_thresh = 0.113)
+trollX_bsts <- agg_data("E:/gihub-data/redditbots/control-fds/trollX_res.csv",
+                     ia_thresh = 0.0123, insult_thresh = 0.0585, toxic_thresh = 0.190)
+gender_bsts <- agg_data("E:/gihub-data/redditbots/control-fds/gendercritical_res.csv",
+                  ia_thresh = 0.0221, insult_thresh = 0.0532, toxic_thresh = 0.179)
+#Model2
+mgtow_bsts <- agg_data("E:/gihub-data/redditbots/control-fds/mgtow_res.csv",
+                    ia_thresh = 0.0162, insult_thresh = 0.0968, toxic_thresh = 0.245)
+trp_bsts <- agg_data("E:/gihub-data/redditbots/control-fds/TheRedPill_res.csv",
+                  ia_thresh = 0.0165, insult_thresh = 0.109, toxic_thresh = 0.271)
+aita_bsts <- agg_data2("E:/gihub-data/redditbots/control-fds/AITA_res.csv",
+                  ia_thresh = 0.00595, insult_thresh = 0.0868, toxic_thresh = 0.200)
+askreddit_bsts <- agg_data2("E:/gihub-data/redditbots/control-fds/askreddit_res.csv",
+                  ia_thresh = 0.00554, insult_thresh = 0.0401, toxic_thresh = 0.146)
+relationship_bsts <- agg_data2("E:/gihub-data/redditbots/control-fds/relationshipadvice_res.csv",
+                  ia_thresh = 0.00444, insult_thresh = 0.0620, toxic_thresh = 0.179)
+unpopular_bsts <- agg_data2("E:/gihub-data/redditbots/control-fds/unpopularopinion_res.csv",
+                  ia_thresh = 0.0121, insult_thresh = 0.0573, toxic_thresh =  0.170)
+purple_bsts <- agg_data3("E:/gihub-data/redditbots/control-fds/purple_test1.csv",
+                  ia_thresh = 0.0166, insult_thresh = 0.0728, toxic_thresh = 0.215)
+skincare_bsts <- agg_data2("E:/gihub-data/redditbots/control-fds/SkincareAddiction_res.csv",
+                  ia_thresh = 0.000711, insult_thresh = 0.00597, toxic_thresh = 0.0374)
+beautyguru_bsts <- agg_data3("E:/gihub-data/redditbots/control-fds/BeautyGuruChatter_res.csv",
+                  ia_thresh = 0.00338, insult_thresh = 0.0233, toxic_thresh = 0.0872)
+makeup_bsts <- agg_data3("E:/gihub-data/redditbots/control-fds/MakeupAddiction_res.csv",
+                  ia_thresh = 0.000717, insult_thresh = 0.00665, toxic_thresh = 0.0325)
+
+# Add pre, post
+fds_bsts <- add_relDate(fds_bsts, day_zero = "2019-10-28")
+#Model 1
+fm_bsts <- add_relDate(fm_bsts, day_zero = "2019-10-28")
+twoX_bsts <- add_relDate(twoX_bsts, day_zero = "2019-10-28")
+wvsp_bsts <- add_relDate(wvsp_bsts, day_zero = "2019-10-28")
+trollX_bsts <- add_relDate(trollX_bsts, day_zero = "2019-10-28")
+gender_bsts <- add_relDate(gender_bsts, day_zero = "2019-10-28")
+#Model 2
+mgtow_bsts <- add_relDate(mgtow_bsts, day_zero = "2019-10-28")
+trp_bsts <- add_relDate(trp_bsts, day_zero = "2019-10-28")
+aita_bsts <- add_relDate(aita_bsts, day_zero = "2019-10-28")
+askreddit_bsts <- add_relDate(askreddit_bsts, day_zero = "2019-10-28")
+relationship_bsts <- add_relDate(relationship_bsts, day_zero = "2019-10-28")
+unpopular_bsts <- add_relDate(unpopular_bsts, day_zero = "2019-10-28")
+purple_bsts <- add_relDate(purple_bsts, day_zero = "2019-10-28")
+skincare_bsts <- add_relDate(skincare_bsts, day_zero = "2019-10-28")
+beautyguru_bsts <- add_relDate(beautyguru_bsts, day_zero = "2019-10-28")
+makeup_bsts <-  add_relDate(makeup_bsts, day_zero = "2019-10-28")
+
+# Take subscribers ----
+fds_subsc <- subscriber_num(
+  source_dir = "E:/gihub-data/redditbots/fds/fds_clean_subm.csv",
+  from_date = "2019-09-28", to_date = "2019-11-27")
+#Model1
+fm_subsc <- subscriber_num(
+  source_dir = "E:/gihub-data/redditbots/control-fds/feminism_subsc.csv",
+  from_date = "2019-09-28", to_date = "2019-11-27")
+twoX_subsc <- subscriber_num(
+  source_dir = "E:/gihub-data/redditbots/control-fds/twoX_subsc.csv",
+  from_date = "2019-09-28", to_date = "2019-11-27")
+wvsp_subsc <- subscriber_num(
+  source_dir = "E:/gihub-data/redditbots/control-fds/wvsp_subsc.csv",
+  from_date = "2019-09-28", to_date = "2019-11-27")
+trollX_subsc <- subscriber_num(
+  source_dir = "E:/gihub-data/redditbots/control-fds/trollX_subsc.csv",
+  from_date = "2019-09-28", to_date = "2019-11-27")
+gender_subsc <- subscriber_num(
+  source_dir = "E:/gihub-data/redditbots/control-fds/gendercritical_subsc.csv",
+  from_date = "2019-09-28", to_date = "2019-11-27")
+#Model2
+trp_subsc <- subscriber_num(
+  source_dir = "E:/gihub-data/redditbots/control-fds/TheRedPill_subsc.csv",
+  from_date = "2019-09-28", to_date = "2019-11-27")
+mgtow_subsc <- subscriber_num(
+  source_dir = "E:/gihub-data/redditbots/control-fds/mgtow_subsc.csv",
+  from_date = "2019-09-28", to_date = "2019-11-27")
+aita_subsc <- subscriber_num(
+  source_dir = "E:/gihub-data/redditbots/control-fds/AITA_subsc.csv",
+  from_date = "2019-09-28", to_date = "2019-11-27")
+askreddit_subsc <- subscriber_num(
+  source_dir = "E:/gihub-data/redditbots/control-fds/askreddit_subsc.csv",
+  from_date = "2019-09-28", to_date = "2019-11-27")
+gender_subsc <- subscriber_num(
+  source_dir = "E:/gihub-data/redditbots/control-fds/gendercritical_subsc.csv",
+  from_date = "2019-09-28", to_date = "2019-11-27")
+relationship_subsc <- subscriber_num(
+  source_dir = "E:/gihub-data/redditbots/control-fds/relationshipadvice_subsc.csv",
+  from_date = "2019-09-28", to_date = "2019-11-27")
+unpopular_subsc <- subscriber_num(
+  source_dir = "E:/gihub-data/redditbots/control-fds/unpopularopinion_subsc.csv",
+  from_date = "2019-09-28", to_date = "2019-11-27")
+purple_subsc <- subscriber_num(
+  source_dir = "E:/gihub-data/redditbots/control-fds/purple_subsc.csv",
+  from_date = "2019-09-28", to_date = "2019-11-27")
+skincare_subsc <- subscriber_num(
+  source_dir = "E:/gihub-data/redditbots/control-fds/SkincareAddiction_subsc.csv",
+  from_date = "2019-09-28", to_date = "2019-11-27")
+beautyguru_subsc <- subscriber_num(
+  source_dir = "E:/gihub-data/redditbots/control-fds/BeautyGuruChatter_subsc.csv",
+  from_date = "2019-09-28", to_date = "2019-11-27")
+makeup_subsc <- subscriber_num(
+  source_dir = "E:/gihub-data/redditbots/control-fds/MakeupAddiction_subsc.csv",
+  from_date = "2019-09-28", to_date = "2019-11-27")
+
+pre_period <- c(1, 30)
+post_period <- c(31, 61)
+```
+
+# IDENTITY ATTACK
+
+## BSTS Model 1 - Identity Attack - Score Mean
+ Constructed by misandry, misogony, dating, popular community, popular female community
+
+```{r bsts-model1-identity-attack-1, echo = TRUE, results = TRUE}
+identity_attack_m1 <- cbind(
+  fds_bsts["identity_attack"],
+  fm_bsts["identity_attack"], fm_subsc["subscriber"],
+  twoX_bsts["identity_attack"], twoX_subsc["subscriber"],
+  trollX_bsts["identity_attack"], trollX_subsc["subscriber"],
+  wvsp_bsts["identity_attack"], wvsp_subsc["subscriber"],
+  mgtow_bsts["identity_attack"], mgtow_subsc["subscriber"],
+  trp_bsts["identity_attack"],
+  aita_bsts["identity_attack"], aita_subsc["subscriber"],
+  askreddit_bsts["identity_attack"], askreddit_subsc["subscriber"],
+  gender_bsts["identity_attack"], gender_subsc["subscriber"],
+  relationship_bsts["identity_attack"], relationship_subsc["subscriber"],
+  unpopular_bsts["identity_attack"], unpopular_subsc["subscriber"],
+  purple_bsts["identity_attack"], purple_subsc["subscriber"],
+  skincare_bsts["identity_attack"], skincare_subsc["subscriber"],
+  beautyguru_bsts["identity_attack"], beautyguru_subsc["subscriber"],
+  makeup_bsts["identity_attack"], makeup_subsc["subscriber"]
+  )
+
+names(identity_attack_m1) <- c("Y", 
+                               "fm_ia", "fm_subsc",
+                               "twoX_ia", "twoX_subc", 
+                               "trollX_ia", "trollX_subc", "wvsp_ia", "wvsp_subc",
+                              "mgtow_ia", "mgtow_subsc", 
+                              "trp_ia", "aita_ia", "aita_subsc",
+                              "askreddit_ia", "askreddit_subsc",
+                              "gender_ia", "gender_subsc", "relationship_ia", "relationship_subsc",
+                              "unpopular_ia", "unpopular_subsc", "purple_ia", "purple_subsc",
+                              "skincare_ia", "skincare_subsc",
+                              "beautyguru_ia", "beautyguru_subsc", "makeup_ia", "makeup_subsc")
+
+identity_attack_m1_impact <- CausalImpact(identity_attack_m1, pre_period,
+                                         post_period, 
+                                         model.args = list(niter = 5000, nseasons = 7))
+
+plot(identity_attack_m1_impact)
+```
+
+```{r bsts-model1-identity-attack-2, echo = TRUE, results = TRUE}
+summary(identity_attack_m1_impact)
+```
+
+```{r bsts-model1-identity-attack-3, echo = TRUE, results = TRUE}
+summary(identity_attack_m1_impact, 'report')
+```
+
+## BSTS Model 1 - Identity Attack - Log Odds
+
+```{r bsts-model1-identity-log-1, echo =T, results = T}
+l.identity_attack_m2 <- identity_attack_m2 %>% 
+  transmute(Y = logodds(Y),
+         mgtow_ia = logodds(mgtow_ia), mgtow_subsc =log(mgtow_subsc),
+         trp_ia = logodds(trp_ia),
+         aita_ia = logodds(aita_ia), iata_subsc =log(aita_subsc),
+         askreddit_ia = logodds(askreddit_ia), askreddit_subsc =log(askreddit_subsc),
+         gender_ia = logodds(gender_ia), gender_subsc =log(gender_subsc),
+         relationship_ia = logodds(relationship_ia), relationship_subsc =log(relationship_subsc),
+         unpopular_ia = logodds(unpopular_ia), unpopular_subsc =log(unpopular_subsc),
+         purple_ia = logodds(purple_ia),purple_subsc =log(purple_subsc),
+         skincare_bsts = logodds(skincare_ia), skincare_subsc = log(skincare_subsc),
+         beautyguru_bsts = logodds(beautyguru_ia), beautyguru_subsc = log(beautyguru_subsc),
+         makeup_bsts = logodds(makeup_ia), makeup_subsc = log(makeup_subsc))
+
+l.identity_attack_m2_impact <- CausalImpact(l.identity_attack_m2, pre_period,
+                                         post_period, 
+                                         model.args = list(niter = 5000, nseasons = 7))
+
+plot(l.identity_attack_m2_impact)
+```
+
+```{r bsts-model1-identity-log-2, echo = T, results = T}
+summary(l.identity_attack_m2_impact)
+```
+
+```{r bsts-model1-identity-log-3, echo = T, results = T}
+summary(l.identity_attack_m2_impact, "report")
+```
+## BSTS Model 1 - Identity Attack - Percentage
+```{r bsts-model1-identity-attack-p1, echo = TRUE, results = TRUE}
+identity_attack_p1 <- cbind(
+  fds_bsts["identity_attack_p"],
+  fm_bsts["identity_attack_p"], fm_subsc["subscriber"],
+  twoX_bsts["identity_attack_p"], twoX_subsc["subscriber"],
+  trollX_bsts["identity_attack_p"], trollX_subsc["subscriber"],
+  wvsp_bsts["identity_attack_p"], wvsp_subsc["subscriber"],
+  mgtow_bsts["identity_attack_p"], mgtow_subsc["subscriber"],
+  trp_bsts["identity_attack_p"],
+  aita_bsts["identity_attack_p"], aita_subsc["subscriber"],
+  askreddit_bsts["identity_attack_p"], askreddit_subsc["subscriber"],
+  gender_bsts["identity_attack_p"], gender_subsc["subscriber"],
+  relationship_bsts["identity_attack_p"], relationship_subsc["subscriber"],
+  unpopular_bsts["identity_attack_p"], unpopular_subsc["subscriber"],
+  purple_bsts["identity_attack_p"], purple_subsc["subscriber"],
+  skincare_bsts["identity_attack_p"], skincare_subsc["subscriber"],
+  beautyguru_bsts["identity_attack_p"], beautyguru_subsc["subscriber"],
+  makeup_bsts["identity_attack_p"], makeup_subsc["subscriber"]
+  )
+
+names(identity_attack_p1) <- c("Y", 
+                               "fm_ia", "fm_subsc",
+                               "twoX_ia", "twoX_subc", 
+                               "trollX_ia", "trollX_subc", "wvsp_ia", "wvsp_subc",
+                              "mgtow_ia", "mgtow_subsc", 
+                              "trp_ia", "aita_ia", "aita_subsc",
+                              "askreddit_ia", "askreddit_subsc",
+                              "gender_ia", "gender_subsc", "relationship_ia", "relationship_subsc",
+                              "unpopular_ia", "unpopular_subsc", "purple_ia", "purple_subsc",
+                              "skincare_ia", "skincare_subsc",
+                              "beautyguru_ia", "beautyguru_subsc", "makeup_ia", "makeup_subsc")
+
+identity_attack_p1_impact <- CausalImpact(identity_attack_p1, pre_period,
+                                         post_period, 
+                                         model.args = list(niter = 5000, nseasons = 7))
+
+plot(identity_attack_p1_impact)
+```
+
+```{r bsts-model1-identity-p2, echo = T, results = T}
+summary(identity_attack_p1_impact)
+```
+
+```{r bsts-model1-identity-p3, echo = T, results = T}
+summary(identity_attack_p1_impact, "report")
+```
+
+## BSTS Model 2 - Identity Attack - Score Mean
+```{r bsts-model2-identity-attack-1, echo = TRUE, results = TRUE}
+identity_attack_m2 <- cbind(
+  fds_bsts["identity_attack"],
+  mgtow_bsts["identity_attack"], mgtow_subsc["subscriber"],
+  trp_bsts["identity_attack"],
+  aita_bsts["identity_attack"], aita_subsc["subscriber"],
+  askreddit_bsts["identity_attack"], askreddit_subsc["subscriber"],
+  relationship_bsts["identity_attack"], relationship_subsc["subscriber"],
+  unpopular_bsts["identity_attack"], unpopular_subsc["subscriber"],
+  purple_bsts["identity_attack"], purple_subsc["subscriber"],
+  skincare_bsts["identity_attack"], skincare_subsc["subscriber"],
+  beautyguru_bsts["identity_attack"], beautyguru_subsc["subscriber"],
+  makeup_bsts["identity_attack"], makeup_subsc["subscriber"]
+  )
+
+names(identity_attack_m2) <- c("Y", 
+                              "mgtow_ia", "mgtow_subsc", 
+                              "trp_ia", "aita_ia", "aita_subsc",
+                              "askreddit_ia", "askreddit_subsc",
+                              "relationship_ia", "relationship_subsc",
+                              "unpopular_ia", "unpopular_subsc", "purple_ia", "purple_subsc",
+                              "skincare_ia", "skincare_subsc",
+                              "beautyguru_ia", "beautyguru_subsc", "makeup_ia", "makeup_subsc")
+
+identity_attack_m2_impact <- CausalImpact(identity_attack_m2, pre_period,
+                                         post_period, 
+                                         model.args = list(niter = 5000, nseasons = 7))
+
+plot(identity_attack_m2_impact)
+```
+
+
+```{r bsts-model2-identity-attack-2, echo = TRUE, results = TRUE}
+summary(identity_attack_m2_impact)
+```
+
+
+```{r bsts-model2-identity-attack-3, echo = TRUE, results = TRUE}
+summary(identity_attack_m2_impact, "report")
+```
+
+## BSTS Model 2 - Identity Attack - Log Odds
+```{r bsts-model2-identity-log-1, echo =T, results = T}
+l.identity_attack_m2 <- identity_attack_m2 %>% 
+  transmute(Y = logodds(Y),
+         mgtow_ia = logodds(mgtow_ia), mgtow_subsc =log(mgtow_subsc),
+         trp_ia = logodds(trp_ia),
+         aita_ia = logodds(aita_ia), iata_subsc =log(aita_subsc),
+         askreddit_ia = logodds(askreddit_ia), askreddit_subsc =log(askreddit_subsc),
+         relationship_ia = logodds(relationship_ia), relationship_subsc =log(relationship_subsc),
+         unpopular_ia = logodds(unpopular_ia), unpopular_subsc =log(unpopular_subsc),
+         purple_ia = logodds(purple_ia), purple_subsc =log(purple_subsc),
+         skincare_ia = logodds(skincare_ia), skincare_subsc =log(skincare_subsc),
+         beautyguru_ia = logodds(beautyguru_ia), beautyguru_subsc =log(beautyguru_subsc),
+         makeup_ia = logodds(makeup_ia), makeup_subsc =log(makeup_subsc))
+
+l.identity_attack_m2_impact <- CausalImpact(l.identity_attack_m2, pre_period,
+                                         post_period, 
+                                         model.args = list(niter = 5000, nseasons = 7))
+
+plot(l.identity_attack_m2_impact)
+```
+
+```{r bsts-model2-identity-log-2, echo =T, results = T}
+summary(l.identity_attack_m2_impact)
+```
+
+```{r bsts-model2-identity-log-3, echo =T, results = T}
+summary(l.identity_attack_m2_impact, "report")
+```
+
+## BSTS Model 2 - Identity Attack - Percentage
+```{r bsts-model2-identity-attack-p1, echo = TRUE, results = TRUE}
+identity_attack_p2 <- cbind(
+  fds_bsts["identity_attack_p"],
+  mgtow_bsts["identity_attack_p"], mgtow_subsc["subscriber"],
+  trp_bsts["identity_attack_p"],
+  aita_bsts["identity_attack_p"], aita_subsc["subscriber"],
+  askreddit_bsts["identity_attack_p"], askreddit_subsc["subscriber"],
+  relationship_bsts["identity_attack_p"], relationship_subsc["subscriber"],
+  unpopular_bsts["identity_attack_p"], unpopular_subsc["subscriber"],
+  purple_bsts["identity_attack_p"], purple_subsc["subscriber"],
+  skincare_bsts["identity_attack_p"], skincare_subsc["subscriber"],
+  beautyguru_bsts["identity_attack_p"], beautyguru_subsc["subscriber"],
+  makeup_bsts["identity_attack_p"], makeup_subsc["subscriber"]
+  )
+
+names(identity_attack_p2) <- c("Y", 
+                              "mgtow_ia", "mgtow_subsc", 
+                              "trp_ia", "aita_ia", "aita_subsc",
+                              "askreddit_ia", "askreddit_subsc",
+                              "relationship_ia", "relationship_subsc",
+                              "unpopular_ia", "unpopular_subsc", "purple_ia", "purple_subsc",
+                              "skincare_ia", "skincare_subsc",
+                              "beautyguru_ia", "beautyguru_subsc", "makeup_ia", "makeup_subsc")
+
+identity_attack_p2_impact <- CausalImpact(identity_attack_p2, pre_period,
+                                         post_period, 
+                                         model.args = list(niter = 5000, nseasons = 7))
+
+plot(identity_attack_p2_impact)
+```
+
+```{r bsts-model2-identity-attack-p2, echo = TRUE, results = TRUE}
+summary(identity_attack_p2_impact)
+```
+
+```{r bsts-model2-identity-attack-p3, echo = TRUE, results = TRUE}
+summary(identity_attack_p2_impact, "report")
+```
+
+# INSULT
+## BSTS Model 1 - Insult - Score Mean
+```{r bsts-model1-insult-1, echo = TRUE, results = TRUE}
+insult_m1 <- cbind(
+  fds_bsts["insult"],
+  fm_bsts["insult"], fm_subsc["subscriber"],
+  twoX_bsts["insult"], twoX_subsc["subscriber"],
+  trollX_bsts["insult"], trollX_subsc["subscriber"],
+  wvsp_bsts["insult"], wvsp_subsc["subscriber"],
+  mgtow_bsts["insult"], mgtow_subsc["subscriber"],
+  trp_bsts["insult"],
+  aita_bsts["insult"], aita_subsc["subscriber"],
+  askreddit_bsts["insult"], askreddit_subsc["subscriber"],
+  gender_bsts["insult"], gender_subsc["subscriber"],
+  relationship_bsts["insult"], relationship_subsc["subscriber"],
+  unpopular_bsts["insult"], unpopular_subsc["subscriber"],
+  purple_bsts["insult"], purple_subsc["subscriber"],
+  skincare_bsts["insult"], skincare_subsc["subscriber"],
+  beautyguru_bsts["insult"], beautyguru_subsc["subscriber"],
+  makeup_bsts["insult"], makeup_subsc["subscriber"]
+  )
+
+names(insult_m1) <- c("Y", 
+                               "fm_ins", "fm_subsc",
+                               "twoX_ins", "twoX_subc", 
+                               "trollX_ins", "trollX_subc", "wvsp_ins", "wvsp_subc",
+                              "mgtow_ins", "mgtow_subsc", 
+                              "trp_ins", "aita_ins", "aita_subsc",
+                              "askreddit_ins", "askreddit_subsc",
+                              "gender_ins", "gender_subsc", "relationship_ins", "relationship_subsc",
+                              "unpopular_ins", "unpopular_subsc", "purple_ins", "purple_subsc",
+                              "skincare_ins", "skincare_subsc",
+                              "beautyguru_ins", "beautyguru_subsc", "makeup_ins", "makeup_subsc")
+
+insult_m1_impact <- CausalImpact(insult_m1, pre_period,
+                                         post_period, 
+                                         model.args = list(niter = 5000, nseasons = 7))
+
+plot(insult_m1_impact)
+```
+
+```{r  bsts-model1-insult-2, echo = TRUE, results = TRUE}
+summary(insult_m1_impact)
+```
+
+## BSTS Model 1 - Insult - Log Score Mean
+```{r bsts-model1-insult-log-1, echo =T, results = T}
+l.insult_m1 <- insult_m1 %>% 
+  transmute(Y = logodds(Y),
+         fm_ins = logodds(fm_ins), fm_subsc =log(fm_subsc),
+         twoX_ins = logodds(twoX_ins), twoX_subsc =log(twoX_subc),
+         trollX_ins = logodds(trollX_ins), trollX_subsc =log(trollX_subc),
+         wvsp_ins = logodds(wvsp_ins), wvsp_subsc =log(wvsp_subc),
+         mgtow_ins = logodds(mgtow_ins), mgtow_subsc =log(mgtow_subsc),
+         trp_ins = logodds(trp_ins),
+         aita_ins = logodds(aita_ins), iata_subsc =log(aita_subsc),
+         askreddit_ins = logodds(askreddit_ins), askreddit_subsc =log(askreddit_subsc),
+         gender_ins = logodds(gender_ins), gender_subsc =log(gender_subsc),
+         relationship_ins = logodds(relationship_ins), relationship_subsc =log(relationship_subsc),
+         unpopular_ins = logodds(unpopular_ins), unpopular_subsc =log(unpopular_subsc),
+         purple_ins = logodds(purple_ins),purple_subsc =log(purple_subsc))
+
+l.insult_m1_impact <- CausalImpact(l.insult_m1, pre_period,
+                                         post_period, 
+                                         model.args = list(niter = 5000, nseasons = 7))
+
+plot(l.insult_m1_impact)
+```
+
+```{r bsts-model1-insult-log-2, echo =T, results = T}
+summary(l.insult_m1_impact)
+```
+
+```{r bsts-model1-insult-log-3, echo =T, results = T}
+summary(l.insult_m1_impact, "report")
+```
+
+## BSTS Model 1 - Insult - Percentage
+```{r bsts-model1-insult-p1, echo = T, results = T}
+insult_p1 <- cbind(
+  fds_bsts["insult_p"],
+  fm_bsts["insult_p"], fm_subsc["subscriber"],
+  twoX_bsts["insult_p"], twoX_subsc["subscriber"],
+  trollX_bsts["insult_p"], trollX_subsc["subscriber"],
+  wvsp_bsts["insult_p"], wvsp_subsc["subscriber"],
+  mgtow_bsts["insult_p"], mgtow_subsc["subscriber"],
+  trp_bsts["insult_p"],
+  aita_bsts["insult_p"], aita_subsc["subscriber"],
+  askreddit_bsts["insult_p"], askreddit_subsc["subscriber"],
+  gender_bsts["insult_p"], gender_subsc["subscriber"],
+  relationship_bsts["insult_p"], relationship_subsc["subscriber"],
+  unpopular_bsts["insult_p"], unpopular_subsc["subscriber"],
+  purple_bsts["insult_p"], purple_subsc["subscriber"],
+  skincare_bsts["insult_p"], skincare_subsc["subscriber"],
+  beautyguru_bsts["insult_p"], beautyguru_subsc["subscriber"],
+  makeup_bsts["insult_p"], makeup_subsc["subscriber"]
+  )
+
+names(insult_p1) <- c("Y", 
+                               "fm_ins", "fm_subsc",
+                               "twoX_ins", "twoX_subc", 
+                               "trollX_ins", "trollX_subc", "wvsp_ins", "wvsp_subc",
+                              "mgtow_ins", "mgtow_subsc", 
+                              "trp_ins", "aita_ins", "aita_subsc",
+                              "askreddit_ins", "askreddit_subsc",
+                              "gender_ins", "gender_subsc", "relationship_ins", "relationship_subsc",
+                              "unpopular_ins", "unpopular_subsc", "purple_ins", "purple_subsc",
+                              "skincare_ins", "skincare_subsc",
+                              "beautyguru_ins", "beautyguru_subsc", "makeup_ins", "makeup_subsc")
+
+insult_p1_impact <- CausalImpact(insult_p1, pre_period,
+                                         post_period, 
+                                         model.args = list(niter = 5000, nseasons = 7))
+
+plot(insult_p1_impact)
+```
+
+```{r bsts-model1-insult-p2, echo = T, results = T}
+summary(insult_p1_impact)
+```
+
+## BSTS Model 2 - Insult - Score Mean
+```{r bsts-model2-insult-1, echo = TRUE, results = TRUE}
+insult_m2 <- cbind(
+  fds_bsts["insult"],
+  mgtow_bsts["insult"], mgtow_subsc["subscriber"],
+  trp_bsts["insult"],
+  aita_bsts["insult"], aita_subsc["subscriber"],
+  askreddit_bsts["insult"], askreddit_subsc["subscriber"],
+  relationship_bsts["insult"], relationship_subsc["subscriber"],
+  unpopular_bsts["insult"], unpopular_subsc["subscriber"],
+  purple_bsts["insult"], purple_subsc["subscriber"],
+  skincare_bsts["insult"], skincare_subsc["subscriber"],
+  beautyguru_bsts["insult"], beautyguru_subsc["subscriber"],
+  makeup_bsts["insult"], makeup_subsc["subscriber"]
+  )
+
+names(insult_m2) <- c("Y","mgtow_ins", "mgtow_subsc", 
+                              "trp_ins", "aita_ins", "aita_subsc",
+                              "askreddit_ins", "askreddit_subsc",
+                              "relationship_ins", "relationship_subsc",
+                              "unpopular_ins", "unpopular_subsc", "purple_ins", "purple_subsc",
+                              "skincare_ins", "skincare_subsc",
+                              "beautyguru_ins", "beautyguru_subsc", "makeup_ins", "makeup_subsc")
+
+insult_m2_impact <- CausalImpact(insult_m2, pre_period,
+                                         post_period, 
+                                         model.args = list(niter = 5000, nseasons = 7))
+
+plot(insult_m2_impact)
+```
+
+```{r bsts-model2-insult-2, echo = T, results = T}
+summary(insult_m2_impact)
+```
+
+## BSTS Model 2 - Insult - Log Score Mean
+```{r bsts-model2-insult-log-1, echo =T, results = T}
+l.insult_m2 <- insult_m2 %>% 
+  transmute(Y = logodds(Y),
+         mgtow_ins = logodds(mgtow_ins), mgtow_subsc =log(mgtow_subsc),
+         trp_ins = logodds(trp_ins),
+         aita_ins = logodds(aita_ins), iata_subsc =log(aita_subsc),
+         askreddit_ins = logodds(askreddit_ins), askreddit_subsc =log(askreddit_subsc),
+         relationship_ins = logodds(relationship_ins), relationship_subsc =log(relationship_subsc),
+         unpopular_ins = logodds(unpopular_ins), unpopular_subsc =log(unpopular_subsc),
+         purple_ins = logodds(purple_ins),purple_subsc =log(purple_subsc),
+         skincare_ins = logodds(skincare_ins), skincare_subsc =log(skincare_subsc),
+         beautyguru_ins = logodds(beautyguru_ins), beautyguru_subsc =log(beautyguru_subsc),
+         makeup_ins = logodds(makeup_ins), makeup_subsc =log(makeup_subsc))
+
+l.insult_m2_impact <- CausalImpact(l.insult_m2, pre_period,
+                                         post_period, 
+                                         model.args = list(niter = 5000, nseasons = 7))
+
+plot(l.insult_m2_impact)
+```
+
+```{r bsts-model2-insult-log-2, echo =T, results = T}
+summary(l.insult_m2_impact)
+```
+
+## BSTS Model 2 - Insult - Percentage
+```{r bsts-model2-insult-p1, echo = TRUE, results = TRUE}
+insult_p2 <- cbind(
+  fds_bsts["insult_p"],
+  mgtow_bsts["insult_p"], mgtow_subsc["subscriber"],
+  trp_bsts["insult_p"],
+  aita_bsts["insult_p"], aita_subsc["subscriber"],
+  askreddit_bsts["insult_p"], askreddit_subsc["subscriber"],
+  relationship_bsts["insult_p"], relationship_subsc["subscriber"],
+  unpopular_bsts["insult_p"], unpopular_subsc["subscriber"],
+  purple_bsts["insult_p"], purple_subsc["subscriber"],
+  skincare_bsts["insult_p"], skincare_subsc["subscriber"],
+  beautyguru_bsts["insult_p"], beautyguru_subsc["subscriber"],
+  makeup_bsts["insult_p"], makeup_subsc["subscriber"]
+  )
+
+names(insult_p2) <- c("Y","mgtow_ins", "mgtow_subsc", 
+                              "trp_ins", "aita_ins", "aita_subsc",
+                              "askreddit_ins", "askreddit_subsc",
+                              "relationship_ins", "relationship_subsc",
+                              "unpopular_ins", "unpopular_subsc", "purple_ins", "purple_subsc",
+                              "skincare_ins", "skincare_subsc",
+                              "beautyguru_ins", "beautyguru_subsc", "makeup_ins", "makeup_subsc")
+
+insult_p2_impact <- CausalImpact(insult_p2, pre_period,
+                                         post_period, 
+                                         model.args = list(niter = 5000, nseasons = 7))
+
+plot(insult_p2_impact)
+```
+
+```{r bsts-model2-insult-p2, echo = TRUE, results = TRUE}
+summary(insult_p2_impact)
+```
+
+# TOXICITY
+## BSTS Model 1 - Toxicity - Score Mean
+```{r bsts-model1-toxicity-1, echo = TRUE, results = TRUE}
+toxicity_m1 <- cbind(
+  fds_bsts["toxicity"],
+  fm_bsts["toxicity"], fm_subsc["subscriber"],
+  twoX_bsts["toxicity"], twoX_subsc["subscriber"],
+  trollX_bsts["toxicity"], trollX_subsc["subscriber"],
+  wvsp_bsts["toxicity"], wvsp_subsc["subscriber"],
+  mgtow_bsts["toxicity"], mgtow_subsc["subscriber"],
+  trp_bsts["toxicity"],
+  aita_bsts["toxicity"], aita_subsc["subscriber"],
+  askreddit_bsts["toxicity"], askreddit_subsc["subscriber"],
+  gender_bsts["toxicity"], gender_subsc["subscriber"],
+  relationship_bsts["toxicity"], relationship_subsc["subscriber"],
+  unpopular_bsts["toxicity"], unpopular_subsc["subscriber"],
+  purple_bsts["toxicity"], purple_subsc["subscriber"],
+  skincare_bsts["toxicity"], skincare_subsc["subscriber"],
+  beautyguru_bsts["toxicity"], beautyguru_subsc["subscriber"],
+  makeup_bsts["toxicity"], makeup_subsc["subscriber"]
+  )
+
+names(toxicity_m1) <- c("Y", 
+                               "fm_toxicity", "fm_subsc",
+                               "twoX_toxicity", "twoX_subc", 
+                               "trollX_toxicity", "trollX_subc", "wvsp_toxicity", "wvsp_subc",
+                              "mgtow_toxicity", "mgtow_subsc", 
+                              "trp_toxicity", "aita_toxicity", "aita_subsc",
+                              "askreddit_toxicity", "askreddit_subsc",
+                              "gender_toxicity", "gender_subsc", 
+                              "relationship_toxicity", "relationship_subsc",
+                              "unpopular_toxicity", "unpopular_subsc", 
+                              "purple_toxicity", "purple_subsc",
+                              "skincare_toxicity", "skincare_subsc",
+                              "beautyguru_toxicity", "beautyguru_subsc", 
+                              "makeup_toxicity", "makeup_subsc")
+
+toxicity_m1_impact <- CausalImpact(toxicity_m1, pre_period,
+                                         post_period, 
+                                         model.args = list(niter = 5000, nseasons = 7))
+
+plot(toxicity_m1_impact)
+```
+
+```{r bsts-model1-toxicity-2, echo = TRUE, results = TRUE}
+summary(toxicity_m1_impact)
+```
+
+## BSTS Model 1 - Toxicity - Log Score Mean
+```{r bsts-model1-toxicity-log-1, echo =T, results = T}
+l.toxicity_m1 <- toxicity_m1 %>% 
+  transmute(Y = logodds(Y),
+         fm_toxicity = logodds(fm_toxicity), fm_subsc =log(fm_subsc),
+         twoX_toxicity = logodds(twoX_toxicity), twoX_subsc =log(twoX_subc),
+         trollX_toxicity = logodds(trollX_toxicity), trollX_subsc =log(trollX_subc),
+         wvsp_toxicity = logodds(wvsp_toxicity), wvsp_subsc =log(wvsp_subc),
+         mgtow_toxicity = logodds(mgtow_toxicity), mgtow_subsc =log(mgtow_subsc),
+         trp_toxicity = logodds(trp_toxicity),
+         aita_toxicity = logodds(aita_toxicity), iata_subsc =log(aita_subsc),
+         askreddit_toxicity = logodds(askreddit_toxicity), askreddit_subsc =log(askreddit_subsc),
+         gender_toxicity = logodds(gender_toxicity), gender_subsc =log(gender_subsc),
+         relationship_toxicity = logodds(relationship_toxicity), relationship_subsc =log(relationship_subsc),
+         unpopular_toxicity = logodds(unpopular_toxicity), unpopular_subsc =log(unpopular_subsc),
+         purple_toxicity = logodds(purple_toxicity),purple_subsc =log(purple_subsc))
+
+l.toxicity_m1_impact <- CausalImpact(l.toxicity_m1, pre_period,
+                                         post_period, 
+                                         model.args = list(niter = 5000, nseasons = 7))
+
+plot(l.toxicity_m1_impact)
+```
+
+```{r bsts-model1-toxicity-log-2, echo =T, results = T}
+summary(l.toxicity_m1_impact)
+```
+
+## BSTS Model 1 - Toxicity - Percentage
+```{r bsts-model1-toxicity-p1, echo = TRUE, results = TRUE}
+toxicity_p1 <- cbind(
+  fds_bsts["toxicity_p"],
+  fm_bsts["toxicity_p"], fm_subsc["subscriber"],
+  twoX_bsts["toxicity_p"], twoX_subsc["subscriber"],
+  trollX_bsts["toxicity_p"], trollX_subsc["subscriber"],
+  wvsp_bsts["toxicity_p"], wvsp_subsc["subscriber"],
+  mgtow_bsts["toxicity_p"], mgtow_subsc["subscriber"],
+  trp_bsts["toxicity_p"],
+  aita_bsts["toxicity_p"], aita_subsc["subscriber"],
+  askreddit_bsts["toxicity_p"], askreddit_subsc["subscriber"],
+  gender_bsts["toxicity_p"], gender_subsc["subscriber"],
+  relationship_bsts["toxicity_p"], relationship_subsc["subscriber"],
+  unpopular_bsts["toxicity_p"], unpopular_subsc["subscriber"],
+  purple_bsts["toxicity_p"], purple_subsc["subscriber"],
+  skincare_bsts["toxicity_p"], skincare_subsc["subscriber"],
+  beautyguru_bsts["toxicity_p"], beautyguru_subsc["subscriber"],
+  makeup_bsts["toxicity_p"], makeup_subsc["subscriber"]
+  )
+
+names(toxicity_p1) <- c("Y", 
+                               "fm_toxicity", "fm_subsc",
+                               "twoX_toxicity", "twoX_subc", 
+                               "trollX_toxicity", "trollX_subc", "wvsp_toxicity", "wvsp_subc",
+                              "mgtow_toxicity", "mgtow_subsc", 
+                              "trp_toxicity", "aita_toxicity", "aita_subsc",
+                              "askreddit_toxicity", "askreddit_subsc",
+                              "gender_toxicity", "gender_subsc", 
+                              "relationship_toxicity", "relationship_subsc",
+                              "unpopular_toxicity", "unpopular_subsc", 
+                              "purple_toxicity", "purple_subsc",
+                              "skincare_toxicity", "skincare_subsc",
+                              "beautyguru_toxicity", "beautyguru_subsc", 
+                              "makeup_toxicity", "makeup_subsc")
+
+toxicity_p1_impact <- CausalImpact(toxicity_p1, pre_period,
+                                         post_period, 
+                                         model.args = list(niter = 5000, nseasons = 7))
+
+plot(toxicity_p1_impact)
+```
+
+```{r bsts-model1-toxicity-p2, echo = TRUE, results = TRUE}
+summary(toxicity_p1_impact)
+```
+## BSTS Model 2 - Toxicity - Score Mean
+```{r bsts-model2-toxicity-1, echo = TRUE, results = TRUE}
+toxicity_m2 <- cbind(
+  fds_bsts["toxicity"],
+  mgtow_bsts["toxicity"], mgtow_subsc["subscriber"],
+  trp_bsts["toxicity"],
+  aita_bsts["toxicity"], aita_subsc["subscriber"],
+  askreddit_bsts["toxicity"], askreddit_subsc["subscriber"],
+  gender_bsts["toxicity"], gender_subsc["subscriber"],
+  relationship_bsts["toxicity"], relationship_subsc["subscriber"],
+  unpopular_bsts["toxicity"], unpopular_subsc["subscriber"],
+  purple_bsts["toxicity"], purple_subsc["subscriber"],
+  skincare_bsts["toxicity"], skincare_subsc["subscriber"],
+  beautyguru_bsts["toxicity"], beautyguru_subsc["subscriber"],
+  makeup_bsts["toxicity"], makeup_subsc["subscriber"]
+  )
+
+names(toxicity_m2) <- c("Y", 
+                              "mgtow_toxicity", "mgtow_subsc", 
+                              "trp_toxicity", "aita_toxicity", "aita_subsc",
+                              "askreddit_toxicity", "askreddit_subsc",
+                              "gender_toxicity", "gender_subsc", 
+                              "relationship_toxicity", "relationship_subsc",
+                              "unpopular_toxicity", "unpopular_subsc", 
+                              "purple_toxicity", "purple_subsc",
+                              "skincare_toxicity", "skincare_subsc",
+                              "beautyguru_toxicity", "beautyguru_subsc", 
+                              "makeup_toxicity", "makeup_subsc")
+
+toxicity_m2_impact <- CausalImpact(toxicity_m2, pre_period,
+                                         post_period, 
+                                         model.args = list(niter = 5000, nseasons = 7))
+
+plot(toxicity_m2_impact)
+```
+```{r bsts-model2-toxicity-2, echo = TRUE, results = TRUE}
+summary(toxicity_m2_impact)
+```
+
+## BSTS Model 2 - Toxicity - Log Score Mean
+```{r bsts-model2-toxicity-log-1, echo =T, results = T}
+l.toxicity_m2 <- toxicity_m2 %>% 
+  transmute(Y = logodds(Y),
+         mgtow_toxicity = logodds(mgtow_toxicity), mgtow_subsc =log(mgtow_subsc),
+         trp_toxicity = logodds(trp_toxicity),
+         aita_toxicity = logodds(aita_toxicity), iata_subsc =log(aita_subsc),
+         askreddit_toxicity = logodds(askreddit_toxicity), askreddit_subsc =log(askreddit_subsc),
+         gender_toxicity = logodds(gender_toxicity), gender_subsc =log(gender_subsc),
+         relationship_toxicity = logodds(relationship_toxicity), relationship_subsc =log(relationship_subsc),
+         unpopular_toxicity = logodds(unpopular_toxicity), unpopular_subsc =log(unpopular_subsc),
+         purple_toxicity = logodds(purple_toxicity),purple_subsc =log(purple_subsc))
+
+l.toxicity_m2_impact <- CausalImpact(l.toxicity_m2, pre_period,
+                                         post_period, 
+                                         model.args = list(niter = 5000, nseasons = 7))
+
+plot(l.toxicity_m2_impact)
+```
+
+```{r bsts-model2-toxicity-log-2, echo =T, results = T}
+summary(l.toxicity_m2_impact)
+```
+## BSTS Model 2 - Toxicity - Percentage
+```{r bsts-model2-toxicity-p1, echo = TRUE, results = TRUE}
+toxicity_p2 <- cbind(
+  fds_bsts["toxicity_p"],
+  mgtow_bsts["toxicity_p"], mgtow_subsc["subscriber"],
+  trp_bsts["toxicity_p"],
+  aita_bsts["toxicity_p"], aita_subsc["subscriber"],
+  askreddit_bsts["toxicity_p"], askreddit_subsc["subscriber"],
+  gender_bsts["toxicity_p"], gender_subsc["subscriber"],
+  relationship_bsts["toxicity_p"], relationship_subsc["subscriber"],
+  unpopular_bsts["toxicity_p"], unpopular_subsc["subscriber"],
+  purple_bsts["toxicity_p"], purple_subsc["subscriber"],
+  skincare_bsts["toxicity_p"], skincare_subsc["subscriber"],
+  beautyguru_bsts["toxicity_p"], beautyguru_subsc["subscriber"],
+  makeup_bsts["toxicity_p"], makeup_subsc["subscriber"]
+  )
+
+names(toxicity_p2) <- c("Y", 
+                              "mgtow_toxicity", "mgtow_subsc", 
+                              "trp_toxicity", "aita_toxicity", "aita_subsc",
+                              "askreddit_toxicity", "askreddit_subsc",
+                              "gender_toxicity", "gender_subsc", 
+                              "relationship_toxicity", "relationship_subsc",
+                              "unpopular_toxicity", "unpopular_subsc", 
+                              "purple_toxicity", "purple_subsc",
+                              "skincare_toxicity", "skincare_subsc",
+                              "beautyguru_toxicity", "beautyguru_subsc", 
+                              "makeup_toxicity", "makeup_subsc")
+
+toxicity_p2_impact <- CausalImpact(toxicity_p2, pre_period,
+                                         post_period, 
+                                         model.args = list(niter = 5000, nseasons = 7))
+
+plot(toxicity_p2_impact)
+```
+
+```{r bsts-model2-toxicity-p2, echo = TRUE, results = TRUE}
+summary(toxicity_p2_impact)
+```

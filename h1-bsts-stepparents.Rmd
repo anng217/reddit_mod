@@ -1,0 +1,362 @@
+---
+title: "h1-bsts-stepparents"
+author: "An Nguyen"
+date: "2022-12-21"
+output: html_document
+---
+
+```{r routine, echo=FALSE, output = FALSE}
+rm(list = ls())
+
+library(tidyverse)
+library(ggplot2)
+library(fixest)
+library(rdd)
+library(kableExtra)
+library(knitr)
+library(broom)
+library(purrr)
+library(psych)
+library(lubridate)
+library(CausalImpact)
+
+source("redditbots_function.R")
+```
+
+## STEP PARENTS 
+```{r multiple-file-joining}
+```
+
+```{r clean-data-for-BSTS, echo = F, results = F, warning = FALSE}
+# Load and clean
+step_bsts <- agg_data("E:/gihub-data/redditbots/stepparents/stepparents_res.csv",
+                 ia_thresh = 0.5, insult_thresh = 0.5, toxic_thresh = 0.5)
+antiMLM_bsts <- agg_data("E:/gihub-data/redditbots/stepparents/antiMLM_res.csv",
+                  ia_thresh = 0.5, insult_thresh = 0.5, toxic_thresh = 0.5)
+faeries_bsts <- agg_data("E:/gihub-data/redditbots/stepparents/amazonfaeries_res.csv",
+                   ia_thresh = 0.5, insult_thresh = 0.5, toxic_thresh = 0.5)
+realparents_bsts <- agg_data("E:/gihub-data/redditbots/stepparents/realparents_res.csv",
+                  ia_thresh = 0.5, insult_thresh = 0.5, toxic_thresh = 0.5)
+relationship_bsts <- agg_data("E:/gihub-data/redditbots/stepparents/relationships_res.csv", ia_thresh = 0.5, insult_thresh = 0.5, toxic_thresh = 0.5)
+#not yet
+parenting_bsts <- agg_data("E:/gihub-data/redditbots/stepparents/parenting_res.csv",
+                   ia_thresh = 0.5, insult_thresh = 0.5, toxic_thresh = 0.5)
+politics_bsts <- agg_data("E:/gihub-data/redditbots/stepparents/politics_res.csv",
+                     ia_thresh = 0.5, insult_thresh = 0.5, toxic_thresh = 0.5)
+askreddit_bsts <- agg_data("E:/gihub-data/redditbots/stepparents/askreddit_res.csv",
+                  ia_thresh = 0.5, insult_thresh = 0.5, toxic_thresh = 0.5)
+
+# Add pre, post
+step_bsts <- add_relDate(step_bsts, day_zero = "2018-07-21")
+antiMLM_bsts <- add_relDate(antiMLM_bsts, day_zero ="2018-07-21")
+faeries_bsts <- add_relDate(faeries_bsts, day_zero = "2018-07-21")
+realparents_bsts <- add_relDate(realparents_bsts, day_zero = "2018-07-21")
+relationship_bsts <- add_relDate(relationship_bsts, day_zero = "2018-07-21")
+parenting_bsts <- add_relDate(parenting_bsts, day_zero = "2018-07-21")
+politics_bsts <- add_relDate(politics_bsts, day_zero = "2018-07-21")
+askreddit_bsts <- add_relDate(askreddit_bsts, day_zero = "2018-07-21")
+askreddit_bsts <-  askreddit_bsts %>% filter(relative_day >= -30 & relative_day <=30)
+
+# Take subscribers (no need to) ----
+fds_subsc <- subscriber_num(
+  source_dir = "E:/gihub-data/redditbots/fds/fds_clean_subm.csv",
+  from_date = "2019-09-28", to_date = "2019-11-27")
+#Model1
+fm_subsc <- subscriber_num(
+  source_dir = "E:/gihub-data/redditbots/control-fds/feminism_subsc.csv",
+  from_date = "2019-09-28", to_date = "2019-11-27")
+twoX_subsc <- subscriber_num(
+  source_dir = "E:/gihub-data/redditbots/control-fds/twoX_subsc.csv",
+  from_date = "2019-09-28", to_date = "2019-11-27")
+wvsp_subsc <- subscriber_num(
+  source_dir = "E:/gihub-data/redditbots/control-fds/wvsp_subsc.csv",
+  from_date = "2019-09-28", to_date = "2019-11-27")
+trollX_subsc <- subscriber_num(
+  source_dir = "E:/gihub-data/redditbots/control-fds/trollX_subsc.csv",
+  from_date = "2019-09-28", to_date = "2019-11-27")
+gender_subsc <- subscriber_num(
+  source_dir = "E:/gihub-data/redditbots/control-fds/gendercritical_subsc.csv",
+  from_date = "2019-09-28", to_date = "2019-11-27")
+#Model2
+trp_subsc <- subscriber_num(
+  source_dir = "E:/gihub-data/redditbots/control-fds/TheRedPill_subsc.csv",
+  from_date = "2019-09-28", to_date = "2019-11-27")
+mgtow_subsc <- subscriber_num(
+  source_dir = "E:/gihub-data/redditbots/control-fds/mgtow_subsc.csv",
+  from_date = "2019-09-28", to_date = "2019-11-27")
+aita_subsc <- subscriber_num(
+  source_dir = "E:/gihub-data/redditbots/control-fds/AITA_subsc.csv",
+  from_date = "2019-09-28", to_date = "2019-11-27")
+askreddit_subsc <- subscriber_num(
+  source_dir = "E:/gihub-data/redditbots/control-fds/askreddit_subsc.csv",
+  from_date = "2019-09-28", to_date = "2019-11-27")
+gender_subsc <- subscriber_num(
+  source_dir = "E:/gihub-data/redditbots/control-fds/gendercritical_subsc.csv",
+  from_date = "2019-09-28", to_date = "2019-11-27")
+relationship_subsc <- subscriber_num(
+  source_dir = "E:/gihub-data/redditbots/control-fds/relationshipadvice_subsc.csv",
+  from_date = "2019-09-28", to_date = "2019-11-27")
+unpopular_subsc <- subscriber_num(
+  source_dir = "E:/gihub-data/redditbots/control-fds/unpopularopinion_subsc.csv",
+  from_date = "2019-09-28", to_date = "2019-11-27")
+purple_subsc <- subscriber_num(
+  source_dir = "E:/gihub-data/redditbots/control-fds/purple_subsc.csv",
+  from_date = "2019-09-28", to_date = "2019-11-27")
+skincare_subsc <- subscriber_num(
+  source_dir = "E:/gihub-data/redditbots/control-fds/SkincareAddiction_subsc.csv",
+  from_date = "2019-09-28", to_date = "2019-11-27")
+beautyguru_subsc <- subscriber_num(
+  source_dir = "E:/gihub-data/redditbots/control-fds/BeautyGuruChatter_subsc.csv",
+  from_date = "2019-09-28", to_date = "2019-11-27")
+makeup_subsc <- subscriber_num(
+  source_dir = "E:/gihub-data/redditbots/control-fds/MakeupAddiction_subsc.csv",
+  from_date = "2019-09-28", to_date = "2019-11-27")
+
+pre_period <- c(1, 30)
+post_period <- c(31, 61)
+```
+
+# IDENTITY ATTACK
+
+## BSTS Model 1 - Identity Attack - Score Mean
+
+Constructed by r/antiMLM, r/amazingfearies, r/realparents, r/relationship, r/parenting, r/politics, r/askreddit
+
+```{r bsts-model1-identity-attack-1, echo = TRUE, results = TRUE}
+identity_attack_m1 <- cbind(
+  step_bsts["identity_attack"],
+  antiMLM_bsts["identity_attack"], #antiMLM_subsc["subscriber"],
+  faeries_bsts["identity_attack"], #faeries_subsc["subscriber"],
+  #realparents_bsts["identity_attack"], #realparents_subsc["subscriber"],
+  relationship_bsts["identity_attack"], #relationship_subsc["subscriber"],
+  parenting_bsts["identity_attack"], #parenting_subsc["subscriber"],
+  #politics_bsts["identity_attack"], #politics_subsc["subscriber"],
+  askreddit_bsts["identity_attack"]#, askreddit_subsc["subscriber"]  
+  )
+
+names(identity_attack_m1) <- c("Y", 
+                               "antiMLM_ia", #"antiMLM_subsc",
+                               "fearies_ia", #"fearies_subc", 
+                               #"realparents_ia", #"realparents_subc",
+                               "relationship_ia", #"relationship_subc",
+                              "parenting_ia", #"parenting_subsc", 
+                              #"politics_ia", #"politics_subsc",
+                              "askreddit_ia"#, #"askreddit_subsc",
+                              )
+
+identity_attack_m1_impact <- CausalImpact(identity_attack_m1, 
+                                        pre_period,
+                                         post_period, 
+                                         model.args = list(niter = 5000, nseasons = 7))
+
+plot(identity_attack_m1_impact)
+```
+
+```{r bsts-model1-identity-attack-2, echo = TRUE, results = TRUE}
+summary(identity_attack_m1_impact)
+```
+
+```{r bsts-model1-identity-attack-3, echo = TRUE, results = TRUE}
+summary(identity_attack_m1_impact, 'report')
+```
+
+## BSTS Model 1 - Identity Attack - Log Odds
+
+```{r bsts-model1-identity-log-1, echo =T, results = T}
+l.identity_attack_m2 <- identity_attack_m1 %>% 
+  transmute(Y = logodds(Y),
+         antiMLM_ia = logodds(antiMLM_ia), #mgtow_subsc =log(mgtow_subsc),
+         faeries_ia = logodds(faeries_ia), #iata_subsc =log(aita_subsc),
+         realparents_ia = logodds(realparents_ia), #realparents_subsc =log(realparents_subsc),
+         askreddit_ia = logodds(askreddit_ia), #askreddit_subsc =log(askreddit_subsc),
+         relationship_ia = logodds(relationship_ia), #relationship_subsc =log(relationship_subsc),
+         parenting_ia = logodds(parenting_ia), #parenting_subsc =log(parenting_subsc),
+         politics_ia = logodds(politics_ia), #politics_subsc =log(politics_subsc),
+         askreddit_bsts = logodds(askreddit_ia), #askreddit_subsc = log(askreddit_subsc),
+        )
+
+l.identity_attack_m2_impact <- CausalImpact(l.identity_attack_m2, pre_period,
+                                         post_period, 
+                                         model.args = list(niter = 5000, nseasons = 7))
+
+plot(l.identity_attack_m2_impact)
+```
+
+```{r bsts-model1-identity-log-2, echo = T, results = T}
+summary(l.identity_attack_m2_impact)
+```
+
+```{r bsts-model1-identity-log-3, echo = T, results = T}
+summary(l.identity_attack_m2_impact, "report")
+```
+## BSTS Model 1 - Identity Attack - Percentage
+```{r bsts-model1-identity-attack-p1, echo = TRUE, results = TRUE}
+
+identity_attack_p1 <- cbind(
+  step_bsts["identity_attack_p"],
+  antiMLM_bsts["identity_attack_p"], #antiMLM_subsc["subscriber"],
+  faeries_bsts["identity_attack_p"], #faeries_subsc["subscriber"],
+  askreddit_bsts["identity_attack_p"], #askreddit_subsc["subscriber"],
+  relationship_bsts["identity_attack_p"], #relationship_subsc["subscriber"],
+  parenting_bsts["identity_attack_p"], #parenting_subsc["subscriber"],
+  politics_bsts["identity_attack_p"], #politics_subsc["subscriber"],
+  )
+
+names(identity_attack_p1) <- c("Y", 
+                               "step_ia", #"step_subsc",
+                               "antiMLM_ia", #"antiMLM_subc", 
+                               "faeries_ia", #"faeries_subc", 
+                              "askreddit_ia", #"askreddit_subsc", 
+                              "relationship_ia", #"relationship_subsc",
+                              "parenting_ia", #"parenting_subsc", 
+                              "politics_ia", #"politics_subsc",
+                              )
+
+identity_attack_p1_impact <- CausalImpact(identity_attack_p1, pre_period,
+                                         post_period, 
+                                         model.args = list(niter = 5000, nseasons = 7))
+
+plot(identity_attack_p1_impact)
+```
+
+```{r bsts-model1-identity-p2, echo = T, results = T}
+summary(identity_attack_p1_impact)
+```
+
+```{r bsts-model1-identity-p3, echo = T, results = T}
+summary(identity_attack_p1_impact, "report")
+```
+
+# INSULT
+## BSTS Model 1 - Insult - Score Mean
+```{r bsts-model1-insult-1, echo = TRUE, results = TRUE}
+insul_m1 <- cbind(
+  step_bsts["insult"],
+  antiMLM_bsts["insult"], #antiMLM_subsc["subscriber"],
+  faeries_bsts["insult"], #faeries_subsc["subscriber"],
+  #realparents_bsts["insult"], #realparents_subsc["subscriber"],
+  relationship_bsts["insult"], #relationship_subsc["subscriber"],
+  parenting_bsts["insult"], #parenting_subsc["subscriber"],
+  #politics_bsts["insult"], #politics_subsc["subscriber"],
+  askreddit_bsts["insult"]#, #askreddit_subsc["subscriber"]  
+  )
+
+names(insul_m1) <- c("Y", 
+                               "antiMLM_ins", #"antiMLM_subsc",
+                               "fearies_ins", #"fearies_subc", 
+                               #"realparents_ins", #"realparents_subc",
+                               "relationship_ins", #"relationship_subc",
+                              "parenting_ins", #"parenting_subsc", 
+                              #"politics_ins", #"politics_subsc",
+                              "askreddit_ins"#, #"askreddit_subsc",
+                              )
+
+insult_m1_impact <- CausalImpact(insul_m1, pre_period,
+                                         post_period, 
+                                         model.args = list(niter = 5000, nseasons = 7))
+
+plot(insult_m1_impact)
+```
+
+```{r  bsts-model1-insult-2, echo = TRUE, results = TRUE}
+summary(insult_m1_impact)
+```
+
+## BSTS Model 1 - Insult - Log Score Mean
+```{r bsts-model1-insult-log-1, echo =T, results = T}
+l.insult_m1 <- insult_m1 %>% 
+  transmute(Y = logodds(Y),
+         antiMLM_ins = logodds(fm_ins), #fm_subsc =log(fm_subsc),
+         faeries_ins = logodds(faeries_ins), #twoX_subsc =log(twoX_subc),
+         realparents_ins = logodds(realparents_ins), #trollX_subsc =log(trollX_subc),
+         relationship_ins = logodds(relationship_ins), #wvsp_subsc =log(wvsp_subc),
+         parenting_ins = logodds(parenting_ins), #mgtow_subsc =log(mgtow_subsc),
+         politics_ins = logodds(politics_ins), #iata_subsc =log(aita_subsc),
+         askreddit_ins = logodds(askreddit_ins) #askreddit_subsc =log(askreddit_subsc),
+         )
+
+
+l.insult_m1_impact <- CausalImpact(l.insult_m1, pre_period,
+                                         post_period, 
+                                         model.args = list(niter = 5000, nseasons = 7))
+
+plot(l.insult_m1_impact)
+```
+
+```{r bsts-model1-insult-log-2, echo =T, results = T}
+summary(l.insult_m1_impact)
+```
+
+```{r bsts-model1-insult-log-3, echo =T, results = T}
+summary(l.insult_m1_impact, "report")
+```
+
+## BSTS Model 1 - Insult - Percentage
+```{r bsts-model1-insult-p1, echo = T, results = T}
+insult_p1 <- cbind(
+  step_bsts["insult_p"],
+  antiMLM_bsts["insult_p"], #antiMLM_subsc["subscriber"],
+  faeries_bsts["insult_p"], #faeries_subsc["subscriber"],
+  realparents_bsts["insult_p"], #realparents_subsc["subscriber"],
+  relationship_bsts["insult_p"], #relationship_subsc["subscriber"],
+  parenting_bsts["insult_p"], #parenting_subsc["subscriber"],
+  politics_bsts["insult_p"], #politics_subsc["subscriber"],
+  askreddit_bsts["insult_p"]#, askreddit_subsc["subscriber"],
+  )
+
+names(insult_p1) <- c("Y", 
+                      "antiMLM_ins", #"antiMLM_subsc",
+                      "faeries_ins", #"faeries_subc", 
+                      "realparents_ins", #"realparents_subc", 
+                      "parenting_ins", #"parenting_subc",
+                      "politics_ins", #"politics_subsc", 
+                      "askreddit_ins"#, "askreddit_subsc",
+                      )
+
+insult_p1_impact <- CausalImpact(insult_p1, pre_period,
+                                         post_period, 
+                                         model.args = list(niter = 5000, nseasons = 7))
+
+plot(insult_p1_impact)
+```
+
+```{r bsts-model1-insult-p2, echo = T, results = T}
+summary(insult_p1_impact)
+```
+
+
+# TOXICITY
+## BSTS Model 1 - Toxicity - Score Mean
+```{r bsts-model1-insult-1, echo = TRUE, results = TRUE}
+tox_m1 <- cbind(
+  step_bsts["toxicity"],
+  antiMLM_bsts["toxicity"], #antiMLM_subsc["subscriber"],
+  faeries_bsts["toxicity"], #faeries_subsc["subscriber"],
+  #realparents_bsts["insult"], #realparents_subsc["subscriber"],
+  relationship_bsts["toxicity"], #relationship_subsc["subscriber"],
+  parenting_bsts["toxicity"], #parenting_subsc["subscriber"],
+  #politics_bsts["insult"], #politics_subsc["subscriber"],
+  askreddit_bsts["toxicity"]#, #askreddit_subsc["subscriber"]  
+  )
+
+names(tox_m1) <- c("Y", 
+                               "antiMLM_tox", #"antiMLM_subsc",
+                               "fearies_tox", #"fearies_subc", 
+                               #"realparents_ins", #"realparents_subc",
+                               "relationship_tox", #"relationship_subc",
+                              "parenting_tox", #"parenting_subsc", 
+                              #"politics_ins", #"politics_subsc",
+                              "askreddit_tox"#, #"askreddit_subsc",
+                              )
+
+tox_m1_impact <- CausalImpact(tox_m1, pre_period,
+                                         post_period, 
+                                         model.args = list(niter = 5000, nseasons = 7))
+
+plot(tox_m1_impact)
+```
+
+```{r  bsts-model1-tox-2, echo = TRUE, results = TRUE}
+summary(tox_m1_impact)
+```
+

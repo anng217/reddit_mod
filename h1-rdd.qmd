@@ -1,0 +1,28 @@
+---
+title: "H1 RDD"
+author: "An Nguyen"
+format: html
+editor: visual
+---
+
+```{r routine  echo=FALSE, output = FALS}
+rm(list = ls())
+
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+library(fixest)
+library(rdd)
+library(kableExtra)
+library(knitr)
+library(broom)
+library(purrr)
+library(psych)
+library(lubridate)
+library(rdd)
+
+source("redditbots_function.R")
+```
+
+```{r}
+```

@@ -1,0 +1,193 @@
+---
+title: "h1-rdd-stepparents"
+author: "An Nguyen"
+date: "2022-12-21"
+output: html_document
+---
+```{r routine, echo=FALSE, output = FALSE}
+source("redditbots_function.R")
+library(tidyverse)
+library(ggplot2)
+library(lubridate)
+```
+
+```{r model-free}
+step <- read.csv("E:/gihub-data/redditbots/stepparents/stepparents_res.csv")
+
+step <- step %>% 
+  mutate(created_date = as_date(lubridate::as_datetime(created_utc)))
+step <- add_relDate(step, day_zero = "2018-07-21")
+
+step_sum10 <- step %>%
+  filter(relative_day > -10 & relative_day < 10)%>%
+  group_by(post)%>%
+  summarise(toxicity = mean(toxicity),
+            identity_attack = mean(identity_attack),
+            insult = mean(insult)) 
+  
+t.test(toxicity ~ post, data = step %>% 
+         group_by(created_date) %>% 
+        filter(relative_day > -10 & relative_day < 10)%>%
+         transmute(post = mean(post), toxicity = mean(toxicity)))$p.value
+
+t.test(identity_attack ~ post, data = step %>% 
+         group_by(created_date) %>% 
+         filter(relative_day > -10 & relative_day < 10)%>%
+         transmute(post = mean(post), identity_attack = mean(identity_attack)))$p.value
+
+t.test(insult ~ post, data = step %>% 
+         group_by(created_date) %>% 
+         filter(relative_day > -10 & relative_day < 10)%>%
+         transmute(post = mean(post), insult = mean(insult)))$p.value
+
+toxicity_thresh <- mean(step_sum$toxicity)
+ia_thresh <- mean(step_sum$identity_attack)
+ins_thresh <-  mean(step_sum$insult)
+```
+
+## TOXICITY
+```{r rdd-toxicity-mean}
+step %>% 
+  group_by(created_date) %>%
+  summarise(toxicity = mean(toxicity), relative_day = relative_day) %>%
+  filter(relative_day > -10 & relative_day < 10) %>%
+  dplyr::select(toxicity, relative_day) %>%
+  mutate(threshold = as.factor(ifelse(relative_day >= 0, 1, 0))) %>%
+  ggplot(aes(x = relative_day, y = toxicity, color = threshold)) +
+  geom_point() +
+  geom_smooth(method = 'lm',se = T) +
+  scale_color_brewer(palette = "Accent") +
+  guides(color = FALSE) +
+  geom_vline(xintercept = -0.5, color = "red",
+             size = 1, linetype = "dashed") +
+  labs(y = "Toxicity Score",
+       x = "Days Since Treatment",
+       title = "Discontinuity in Toxicity") + 
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.background = element_blank(),
+        axis.line = element_line(colour = "black"))
+```
+
+```{r rdd-toxicity-perc}
+step %>% 
+  mutate(toxicity_flag = ifelse(toxicity >toxicity_thresh,1,0)) %>%
+  group_by(created_date) %>%
+  summarise(toxicity_flag = mean(toxicity_flag), relative_day = relative_day) %>%
+  filter(relative_day > -30 & relative_day < 30) %>%
+  dplyr::select(toxicity_flag, relative_day) %>%
+  mutate(threshold = as.factor(ifelse(relative_day >= 0, 1, 0))) %>%
+  ggplot(aes(x = relative_day, y = toxicity_flag, color = threshold)) +
+  geom_point() +
+  geom_smooth(method = 'lm',se = T) +
+  scale_color_brewer(palette = "Accent") +
+  guides(color = FALSE) +
+  geom_vline(xintercept = -0.5, color = "red",
+             size = 1, linetype = "dashed") +
+  labs(y = "Toxicity Score",
+       x = "Days Since Treatment",
+       title = "Discontinuity in Percentage of Toxic Comments") + 
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.background = element_blank(),
+        axis.line = element_line(colour = "black"))
+```
+
+## IDENTITY ATTACK
+```{r rdd-identity-attack-mean}
+step %>% 
+  group_by(created_date) %>%
+  summarise(ia = mean(identity_attack), relative_day = relative_day) %>%
+  filter(relative_day > -30 & relative_day < 30) %>%
+  dplyr::select(ia, relative_day) %>%
+  mutate(threshold = as.factor(ifelse(relative_day >= 0, 1, 0))) %>%
+  ggplot(aes(x = relative_day, y = ia, color = threshold)) +
+  geom_point() +
+  geom_smooth(method = 'lm',se = T) +
+  scale_color_brewer(palette = "Accent") +
+  guides(color = FALSE) +
+  geom_vline(xintercept = -0.5, color = "red",
+             size = 1, linetype = "dashed") +
+  labs(y = "Identity Attack Score",
+       x = "Days Since Treatment",
+       title = "Discontinuity in Identity Attack") + 
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.background = element_blank(),
+        axis.line = element_line(colour = "black"))
+```
+
+
+
+```{r rdd-identity-attack-perc}
+step %>% 
+  mutate(ia_flag = ifelse(identity_attack > ia_thresh,1,0)) %>%
+  group_by(created_date) %>%
+  summarise(ia_flag = mean(ia_flag), relative_day = relative_day) %>%
+  filter(relative_day > - 30 & relative_day < 30) %>%
+  dplyr::select(ia_flag, relative_day) %>%
+  mutate(threshold = as.factor(ifelse(relative_day >= 0, 1, 0))) %>%
+  ggplot(aes(x = relative_day, y = ia_flag, color = threshold)) +
+  geom_point() +
+  geom_smooth(method = 'lm',se = T) +
+  scale_color_brewer(palette = "Accent") +
+  guides(color = FALSE) +
+  geom_vline(xintercept = -0.5, color = "red",
+             size = 1, linetype = "dashed") +
+  labs(y = "Identity Attack Score",
+       x = "Days Since Treatment",
+       title = "Discontinuity in Percentage of Identity Attack Comments") + 
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.background = element_blank(),
+        axis.line = element_line(colour = "black"))
+```
+
+##INSULT
+```{r rdd-insult-mean}
+step %>% 
+  group_by(created_date) %>%
+  summarise(insult = mean(insult), relative_day = relative_day) %>%
+  filter(relative_day > -30 & relative_day < 30) %>%
+  dplyr::select(insult, relative_day) %>%
+  mutate(threshold = as.factor(ifelse(relative_day >= 0, 1, 0))) %>%
+  ggplot(aes(x = relative_day, y = insult, color = threshold)) +
+  geom_point() +
+  geom_smooth(method = 'lm',se = T) +
+  scale_color_brewer(palette = "Accent") +
+  guides(color = FALSE) +
+  geom_vline(xintercept = -0.5, color = "red",
+             size = 1, linetype = "dashed") +
+  labs(y = "Identity Attack Score",
+       x = "Days Since Treatment",
+       title = "Discontinuity in Insult") + 
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.background = element_blank(),
+        axis.line = element_line(colour = "black"))
+```
+
+```{r rdd-insult-mean}
+step %>% 
+  mutate(ins_flag = ifelse(identity_attack > ins_thresh,1,0)) %>%
+  group_by(created_date) %>%
+  summarise(ins_flag = mean(ins_flag), relative_day = relative_day) %>%
+  filter(relative_day > -30 & relative_day < 30) %>%
+  dplyr::select(ins_flag, relative_day) %>%
+  mutate(threshold = as.factor(ifelse(relative_day >= 0, 1, 0))) %>%
+  ggplot(aes(x = relative_day, y = ins_flag, color = threshold)) +
+  geom_point() +
+  geom_smooth(method = 'lm',se = T) +
+  scale_color_brewer(palette = "Accent") +
+  guides(color = FALSE) +
+  geom_vline(xintercept = -0.5, color = "red",
+             size = 1, linetype = "dashed") +
+  labs(y = "Identity Attack Score",
+       x = "Days Since Treatment",
+       title = "Discontinuity in Percentage of Insult Comments") + 
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.background = element_blank(),
+        axis.line = element_line(colour = "black"))
+```
+
